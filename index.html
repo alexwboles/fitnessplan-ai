@@ -3,25 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FitnessPlan AI — workout planner</title>
+<title>FitnessPlan AI — your week of training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header>
-  <h1>FitnessPlan AI</h1>
-  <p>Your goal, your schedule, your equipment → a full week of workouts. Free, private, in your browser.</p>
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <strong>FitnessPlan <span class="ai">AI</span></strong>
+        <span class="brand-sub">Train with intent</span>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <button data-tab="plan" class="active">My plan</button>
+      <button data-tab="library">Exercises</button>
+      <button data-tab="log">Progress</button>
+    </nav>
+  </div>
 </header>
-<nav class="tabs">
-  <button data-tab="plan" class="active">My Plan</button>
-  <button data-tab="library">Exercise Library</button>
-  <button data-tab="log">Progress</button>
-</nav>
-<main>
+
+<main class="wrap">
   <section id="tab-plan" class="tabpage"></section>
   <section id="tab-library" class="tabpage" style="display:none"></section>
   <section id="tab-log" class="tabpage" style="display:none"></section>
 </main>
-<footer>FitnessPlan AI · 100% local — your data never leaves this browser. Not medical advice; check with a professional before starting a new program.</footer>
+
+<footer class="wrap foot">
+  <p>FitnessPlan AI · 100% local — your data never leaves this browser.</p>
+  <p class="fine">Not medical advice; check with a professional before starting a new program.</p>
+</footer>
+
 <script src="js/exercises.js"></script>
 <script src="js/logic.js"></script>
 <script src="js/app.js"></script>
