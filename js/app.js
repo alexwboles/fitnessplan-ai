@@ -70,7 +70,7 @@ function wirePlanButtons(plan) {
       const d = plan.days[parseInt(b.getAttribute("data-done"), 10)];
       const logs = FP.logWorkout(store.get("logs", []), FP.todayISO(), d.workout.name);
       store.set("logs", logs);
-      b.textContent = "Logged ✓"; b.disabled = true;
+      b.textContent = "Logged"; b.disabled = true;
     };
   });
 }
