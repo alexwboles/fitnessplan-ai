@@ -104,14 +104,22 @@ function wirePlanButtons(plan) {
 
 // ---------- library tab ----------
 let libFilter = "";
+let libEquipment = "";
+let libSort = "name";
 function renderLibrary() {
-  const q = libFilter.toLowerCase();
-  const list = EX.filter(e => !q || e.name.toLowerCase().indexOf(q) !== -1 || e.muscles.toLowerCase().indexOf(q) !== -1);
+  const list = FP.filterLibrary(EX, { q: libFilter, equipment: libEquipment, sort: libSort });
   let html = '<p class="kicker">Movement index</p><h2 class="title">Exercise library</h2>' +
     '<p class="lede">' + list.length + ' movements, filtered to the equipment you own when you generate a plan.</p>';
   html += '<div class="lib-head"><div class="search">' +
     '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#8b948f" stroke-width="1.6"/><path d="M11 11l3 3" stroke="#8b948f" stroke-width="1.6" stroke-linecap="round"/></svg>' +
-    '<input type="text" id="lib-q" placeholder="Search exercises or muscles…" value="' + esc(libFilter) + '"></div></div>';
+    '<input type="text" id="lib-q" placeholder="Search exercises or muscles…" value="' + esc(libFilter) + '"></div>' +
+    '<select id="lib-eq" aria-label="Filter by equipment"><option value="">All equipment</option>' +
+    Object.keys(EQUIP_LABELS).map(k =>
+      '<option value="' + k + '"' + (libEquipment === k ? " selected" : "") + '>' + EQUIP_LABELS[k] + '</option>').join("") +
+    '</select><select id="lib-sort" aria-label="Sort exercises">' +
+    [["name", "Sort: A–Z"], ["muscles", "Sort: muscle"], ["type", "Sort: type"]].map(o =>
+      '<option value="' + o[0] + '"' + (libSort === o[0] ? " selected" : "") + '>' + o[1] + '</option>').join("") +
+    '</select></div>';
   html += '<div class="exgrid">';
   list.forEach(e => {
     html += '<div class="ex"><div class="ex-name">' + esc(e.name) + '</div><div class="ex-muscles">' + esc(e.muscles) + '</div>' +
@@ -121,28 +129,73 @@ function renderLibrary() {
   html += '</div>';
   el("tab-library").innerHTML = html;
   el("lib-q").oninput = ev => { libFilter = ev.target.value; renderLibrary(); const q2 = el("lib-q"); q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); };
+  el("lib-eq").onchange = ev => { libEquipment = ev.target.value; renderLibrary(); };
+  el("lib-sort").onchange = ev => { libSort = ev.target.value; renderLibrary(); };
 }
 
 // ---------- log tab ----------
+function validISODate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + "T00:00:00");
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 function renderLog() {
   const logs = store.get("logs", []);
   const streak = FP.currentStreak(logs);
   const week = FP.workoutsThisWeek(logs);
   const plan = store.get("plan", null);
+  const adh = FP.adherence(logs, plan);
   let html = '<p class="kicker">Consistency</p><h2 class="title">Progress</h2><p class="lede">Show up, log it, watch the chain grow.</p>';
   html += '<div class="stat-band">' +
     '<div class="stat"><div class="num">' + streak + '</div><div class="lbl">day streak</div></div>' +
     '<div class="stat"><div class="num">' + week + '</div><div class="lbl">this week' + (plan ? ' / goal ' + plan.daysPerWeek : '') + '</div></div>' +
-    '<div class="stat"><div class="num">' + logs.length + '</div><div class="lbl">total sessions</div></div></div>';
+    '<div class="stat"><div class="num">' + logs.length + '</div><div class="lbl">total sessions</div></div>' +
+    (plan ? '<div class="stat"><div class="num">' + adh.pct + '%</div><div class="lbl">weekly adherence</div></div>' : '') + '</div>';
+  html += '<div class="card"><h3>Log a past workout</h3><p class="hint">Forgot to log? Backdate it so your history stays honest.</p>' +
+    '<div class="backdate-row"><input type="date" id="l-backdate" value="' + FP.todayISO() + '" aria-label="Date">' +
+    '<input type="text" id="l-backname" placeholder="Workout name (e.g. Push Day)" aria-label="Workout name">' +
+    '<button class="btn small" id="l-addpast">Add entry</button></div>' +
+    '<p class="form-error" id="l-error" style="display:none"></p>' +
+    '<div class="toolbar-row"><button class="btn ghost small" id="l-export">Export log as CSV</button></div></div>';
   html += '<div class="card"><h3>Workout log</h3>';
   if (!logs.length) html += '<p class="hint">Nothing logged yet. Finish a workout on the Plan tab and hit "Log done".</p>';
   else {
-    html += '<table class="log"><tr><th>Date</th><th>Workout</th></tr>';
-    logs.slice().reverse().slice(0, 30).forEach(l => { html += '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.workout || "—") + '</td></tr>'; });
+    html += '<table class="log"><tr><th>Date</th><th>Workout</th><th></th></tr>';
+    logs.slice().reverse().slice(0, 30).forEach(l => {
+      html += '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.workout || "—") + '</td>' +
+        '<td class="act-cell"><button class="link danger-link" data-dellog="' + esc(l.date) + '">delete</button></td></tr>';
+    });
     html += '</table>';
   }
   html += '</div>';
   el("tab-log").innerHTML = html;
+
+  document.querySelectorAll("[data-dellog]").forEach(b => {
+    b.onclick = () => {
+      if (!confirm("Delete the log entry for " + b.getAttribute("data-dellog") + "?")) return;
+      store.set("logs", FP.deleteLog(store.get("logs", []), b.getAttribute("data-dellog")));
+      renderLog();
+    };
+  });
+  el("l-addpast").onclick = () => {
+    const d = el("l-backdate").value, name = el("l-backname").value.trim();
+    const err = el("l-error");
+    if (!validISODate(d)) { err.textContent = "Pick a valid date."; err.style.display = "block"; return; }
+    if (d > FP.todayISO()) { err.textContent = "Can't log a future workout — backdate only."; err.style.display = "block"; return; }
+    err.style.display = "none";
+    store.set("logs", FP.logWorkout(store.get("logs", []), d, name));
+    renderLog();
+  };
+  el("l-export").onclick = () => {
+    const csv = FP.logToCSV(store.get("logs", []));
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "fitnessplan-log.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
 }
 
 document.addEventListener("DOMContentLoaded", () => {

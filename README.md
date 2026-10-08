@@ -18,8 +18,8 @@ python3 -m http.server 8000
 - **Goal-based plan generator** — strength (push/pull/legs splits), cardio (HIIT ↔ steady-state), weight-loss circuits, and full-body general plans
 - **Equipment-aware** — only suggests exercises you can actually do with the gear you own (bodyweight, dumbbells, barbell, kettlebell, band, pull-up bar, jump rope, bench)
 - **Smart week layout** — workouts spread across the week so muscles recover between sessions
-- **40-exercise library** — searchable by name or muscle group, with equipment tags
-- **Workout log + streaks** — log completed sessions, track your current day-streak and this week's count vs your goal
+- **40-exercise library** — searchable by name or muscle group, filterable by equipment, sortable by name/muscle/type, with equipment tags
+- **Workout log + streaks** — log completed sessions, backdate missed workouts, delete mistaken entries, track your current day-streak, weekly adherence % vs your plan, and export the full log as CSV
 - **Rest-day reminders** — tells you whether today is training or recovery, and names your next session
 
 ## Tests

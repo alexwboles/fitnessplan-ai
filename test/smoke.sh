@@ -133,4 +133,76 @@ console.log('OK: ' + names.join(' / '));
 " || fail "strength split variety"
 pass "3-day strength split varies across push/pull/legs"
 
+# 13: deleteLog removes only the matching date
+node -e "
+const FP = require('./js/logic.js');
+let logs = FP.logWorkout(FP.logWorkout(FP.logWorkout([], '2026-09-28', 'A'), '2026-09-27', 'B'), '2026-09-26', 'C');
+logs = FP.deleteLog(logs, '2026-09-27');
+if (logs.length !== 2) throw new Error('expected 2 left, got ' + logs.length);
+if (logs.some(l => l.date === '2026-09-27')) throw new Error('deleted date still present');
+logs = FP.deleteLog(logs, '2026-01-01');
+if (logs.length !== 2) throw new Error('deleting missing date changed the log');
+console.log('OK');
+" || fail "deleteLog"
+pass "deleteLog removes one date; no-op on unknown date"
+
+# 14: logToCSV exports header + chronological rows, quoting commas
+node -e "
+const FP = require('./js/logic.js');
+const logs = [{date:'2026-09-28',workout:'Pull Day'},{date:'2026-09-26',workout:'Legs, heavy'}];
+const csv = FP.logToCSV(logs).split('\n');
+if (csv[0] !== 'date,workout') throw new Error('bad header: ' + csv[0]);
+if (csv[1] !== '2026-09-26,\"Legs, heavy\"') throw new Error('bad row 1: ' + csv[1]);
+if (csv[2] !== '2026-09-28,Pull Day') throw new Error('bad row 2: ' + csv[2]);
+console.log('OK');
+" || fail "logToCSV"
+pass "logToCSV: header + sorted rows + comma quoting"
+
+# 15: filterLibrary filters by equipment and sorts
+node -e "
+const FP = require('./js/logic.js');
+const X = require('./js/exercises.js');
+const only = FP.filterLibrary(X.EXERCISES, {q:'', equipment:'dumbbell', sort:'name'});
+if (!only.length) throw new Error('no dumbbell exercises');
+if (only.some(e => e.equipment.indexOf('dumbbell') === -1)) throw new Error('non-dumbbell leaked in');
+const byName = FP.filterLibrary(X.EXERCISES, {q:'push', sort:'name'});
+for (let i = 1; i < byName.length; i++) {
+  if (byName[i-1].name.toLowerCase() > byName[i].name.toLowerCase()) throw new Error('not sorted by name');
+}
+const byType = FP.filterLibrary(X.EXERCISES, {sort:'type'});
+for (let i = 1; i < byType.length; i++) {
+  if (byType[i-1].type.toLowerCase() > byType[i].type.toLowerCase()) throw new Error('not sorted by type');
+}
+console.log('OK: ' + only.length + ' dumbbell exercises');
+" || fail "filterLibrary"
+pass "filterLibrary: equipment filter + name/type sorting"
+
+# 16: adherence reports done vs planned %
+node -e "
+const FP = require('./js/logic.js');
+const p = FP.generatePlan({goal:'general', daysPerWeek:3, equipment:[]}, 5);
+const ref = new Date(2026, 8, 30); // Wed 2026-09-30
+let logs = FP.logWorkout([], '2026-09-28', 'A');
+logs = FP.logWorkout(logs, '2026-09-30', 'B');
+const a = FP.adherence(logs, p, ref);
+if (a.done !== 2) throw new Error('done should be 2, got ' + a.done);
+if (a.planned !== 3) throw new Error('planned should be 3, got ' + a.planned);
+if (a.pct !== 67) throw new Error('pct should be 67, got ' + a.pct);
+const none = FP.adherence([], null, ref);
+if (none.planned !== 0 || none.pct !== 0) throw new Error('no plan should be 0/0');
+console.log('OK');
+" || fail "adherence"
+pass "adherence: 2/3 logged -> 67%; no plan -> 0%"
+
+# 17: logWorkout supports backdating a past workout
+node -e "
+const FP = require('./js/logic.js');
+let logs = FP.logWorkout([], FP.todayISO(), 'Today Work');
+logs = FP.logWorkout(logs, '2026-09-20', 'Forgot-to-log run');
+if (logs.length !== 2) throw new Error('expected 2 entries');
+if (logs[0].date !== '2026-09-20') throw new Error('backdated entry not kept in order');
+console.log('OK');
+" || fail "backdate logging"
+pass "logWorkout accepts a backdated entry"
+
 echo "All smoke tests passed."

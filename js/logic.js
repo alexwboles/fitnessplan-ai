@@ -210,7 +210,46 @@ function nextWorkoutDay(plan, fromIdx) {
   return "none scheduled";
 }
 
-const api = { store, GOALS, DAYS, PRESCRIPTIONS, generatePlan, todayISO, logWorkout,
+// ---- log management: delete + CSV export ----
+function deleteLog(logs, dateISO) {
+  return (logs || []).filter(l => l.date !== dateISO);
+}
+
+function csvEsc(v) {
+  const s = String(v == null ? "" : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function logToCSV(logs) {
+  const rows = [["date", "workout"]];
+  (logs || []).slice().sort((a, b) => a.date < b.date ? -1 : 1)
+    .forEach(l => rows.push([csvEsc(l.date), csvEsc(l.workout || "")]));
+  return rows.map(r => r.join(",")).join("\n");
+}
+
+// ---- library: filter by query + equipment, sort by name/muscles/type ----
+function filterLibrary(exercises, opts) {
+  opts = opts || {};
+  const q = String(opts.q || "").toLowerCase();
+  const eq = opts.equipment || ""; // equipment key; "" = any
+  const sort = opts.sort || "name";
+  let list = exercises.filter(e =>
+    (!q || e.name.toLowerCase().indexOf(q) !== -1 || e.muscles.toLowerCase().indexOf(q) !== -1) &&
+    (!eq || e.equipment.indexOf(eq) !== -1));
+  const key = sort === "muscles" ? (e => e.muscles) : sort === "type" ? (e => e.type) : (e => e.name);
+  return list.slice().sort((a, b) => key(a).toLowerCase() < key(b).toLowerCase() ? -1 : 1);
+}
+
+// ---- weekly adherence: logged sessions vs planned ----
+function adherence(logs, plan, refDate) {
+  const planned = plan && plan.days ? plan.days.filter(d => d.type === "workout").length : 0;
+  const done = workoutsThisWeek(logs, refDate);
+  const pct = planned > 0 ? Math.round((done / planned) * 100) : 0;
+  return { done, planned, pct: Math.min(pct, 100) };
+}
+
+const api = { store, GOALS, DAYS, PRESCRIPTIONS, generatePlan, todayISO, logWorkout, deleteLog,
+              logToCSV, filterLibrary, adherence,
               currentStreak, workoutsThisWeek, restDayReminder, equipmentOK };
 
 if (typeof window !== "undefined") window.FitnessPlan = api;

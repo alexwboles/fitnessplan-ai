@@ -81,4 +81,38 @@ flow("rest day message names next workout", () => {
   assert.ok(/Wednesday/.test(msg), "names next workout day: " + msg);
 });
 
+// Flow 8: forgot to log yesterday — backdate it, then export the log as CSV
+flow("backdate missed workout then export CSV", () => {
+  let logs = FP.logWorkout([], "2026-09-30", "Pull Day");
+  logs = FP.logWorkout(logs, "2026-09-28", "Push Day"); // logged late
+  assert.strictEqual(FP.currentStreak(logs, new Date(2026, 8, 30)), 1, "gap on 9/29 -> streak 1"); // honest math
+  const csv = FP.logToCSV(logs);
+  assert.ok(csv.startsWith("date,workout\n"), "CSV header: " + csv.split("\n")[0]);
+  assert.ok(csv.indexOf("2026-09-28,Push Day") !== -1, "backdated row exported");
+  assert.ok(csv.indexOf("2026-09-30,Pull Day") !== -1, "today row exported");
+});
+
+// Flow 9: delete a mistakenly logged entry, then see honest weekly adherence
+flow("delete mistaken entry then weekly adherence", () => {
+  const plan = FP.generatePlan({ goal: "general", daysPerWeek: 3, equipment: [] }, 5);
+  let logs = ["2026-09-28", "2026-09-30"].reduce((L, d) => FP.logWorkout(L, d, "W"), []);
+  logs = FP.deleteLog(logs, "2026-09-28"); // oops, logged twice
+  assert.strictEqual(logs.length, 1);
+  const a = FP.adherence(logs, plan, new Date(2026, 8, 30));
+  assert.strictEqual(a.done, 1);
+  assert.strictEqual(a.planned, 3);
+  assert.strictEqual(a.pct, 33);
+});
+
+// Flow 10: library — home-gym owner filters to dumbbell-only moves, sorted by name
+flow("library equipment filter + sorting", () => {
+  const list = FP.filterLibrary(X.EXERCISES, { q: "", equipment: "dumbbell", sort: "name" });
+  assert.ok(list.length > 0, "dumbbell moves found");
+  assert.ok(list.every(e => e.equipment.indexOf("dumbbell") !== -1), "all usable with dumbbells");
+  const names = list.map(e => e.name.toLowerCase());
+  assert.deepStrictEqual(names, names.slice().sort(), "A-Z sorted");
+  const core = FP.filterLibrary(X.EXERCISES, { q: "plank", equipment: "", sort: "name" });
+  assert.ok(core.some(e => e.name === "Plank Hold"), "search still finds Plank Hold");
+});
+
 console.log(passed + " e2e flows passed.");

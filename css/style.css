@@ -135,7 +135,7 @@ p.lede { color: var(--muted); margin: 0 0 22px; max-width: 60ch; }
 /* ---------- forms ---------- */
 .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
 .field > span.lbl { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-select, input[type=text], input[type=number] {
+select, input[type=text], input[type=number], input[type=date] {
   background: var(--bg-deep); border: 1px solid var(--line); color: var(--ink);
   border-radius: 0; padding: 11px 13px; font: 500 14px var(--sans); width: 100%;
   transition: border-color .15s ease, box-shadow .15s ease;
@@ -172,6 +172,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 
 /* ---------- library ---------- */
 .lib-head { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+.lib-head select { width: auto; min-width: 170px; flex: 0 1 auto; }
 .search { position: relative; flex: 1; min-width: 220px; }
 .search input { padding-left: 40px; }
 .search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); opacity: .5; }
@@ -204,6 +205,17 @@ table.log td:first-child { font-variant-numeric: tabular-nums; color: var(--ink-
 
 .hint { color: var(--muted); font-size: 13.5px; }
 .empty { padding: 26px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 0; }
+
+/* ---------- progress: backdate form, export, row actions ---------- */
+.backdate-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.backdate-row input[type=date], .backdate-row input[type=text] { width: auto; min-width: 0; }
+.backdate-row input[type=text] { flex: 1; min-width: 180px; }
+.toolbar-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+td.act-cell { text-align: right; white-space: nowrap; }
+.link { background: none; border: 0; padding: 4px 6px; cursor: pointer; font: 600 12.5px var(--sans); color: var(--volt); }
+.link:hover { text-decoration: underline; }
+.danger-link { color: #e2574c; }
+.form-error { color: #e2574c; font-size: 13px; margin: 10px 0 0; }
 
 /* ---------- footer ---------- */
 .foot { padding: 26px 22px 40px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line-soft); margin-top: 10px; }
