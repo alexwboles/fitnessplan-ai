@@ -147,7 +147,20 @@ function generatePlan(opts, seed) {
       }
     };
   });
-  return { goal, daysPerWeek: days, equipment: owned, days: week, createdAt: new Date().toISOString().slice(0, 10) };
+  return { goal, daysPerWeek: days, equipment: owned, days: week, seed, createdAt: new Date().toISOString().slice(0, 10) };
+}
+
+// Re-roll one day's workout with a fresh seed — same goal/schedule, new exercises.
+// Mutates and returns the plan (also persisted by the caller).
+function shuffleSession(plan, dayIdx) {
+  if (!plan || !plan.days || !plan.days[dayIdx] || plan.days[dayIdx].type !== "workout") return plan;
+  const base = (plan.seed == null ? 0 : plan.seed) + 1 + dayIdx * 7919 + Math.floor(Math.random() * 100000);
+  const owned = (plan.equipment || []).filter(e => e !== "none");
+  const fresh = generatePlan({ goal: plan.goal, daysPerWeek: plan.daysPerWeek, equipment: owned }, base);
+  const nw = fresh.days[dayIdx];
+  if (nw && nw.type === "workout") plan.days[dayIdx].workout = nw.workout;
+  plan.seed = base;
+  return plan;
 }
 
 // ---- workout log + streaks ----
@@ -156,9 +169,18 @@ function todayISO(d) {
   return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
 }
 
-function logWorkout(logs, dateISO, workoutName) {
+function logWorkout(logs, dateISO, workoutName, meta) {
   logs = logs || [];
-  if (!logs.some(l => l.date === dateISO)) logs.push({ date: dateISO, workout: workoutName || "" });
+  if (!logs.some(l => l.date === dateISO)) {
+    const entry = { date: dateISO, workout: workoutName || "" };
+    if (meta) {
+      const mins = parseInt(meta.minutes, 10);
+      const rpe = parseInt(meta.effort, 10);
+      if (mins > 0 && mins <= 600) entry.minutes = mins;
+      if (rpe >= 1 && rpe <= 10) entry.effort = rpe;
+    }
+    logs.push(entry);
+  }
   return logs.sort((a, b) => a.date < b.date ? -1 : 1);
 }
 
@@ -221,10 +243,38 @@ function csvEsc(v) {
 }
 
 function logToCSV(logs) {
-  const rows = [["date", "workout"]];
+  // minutes/effort columns appear only when at least one entry carries them —
+  // plain logs keep the original two-column export.
+  const withMeta = (logs || []).some(l => l.minutes || l.effort);
+  const rows = [withMeta ? ["date", "workout", "minutes", "effort"] : ["date", "workout"]];
   (logs || []).slice().sort((a, b) => a.date < b.date ? -1 : 1)
-    .forEach(l => rows.push([csvEsc(l.date), csvEsc(l.workout || "")]));
+    .forEach(l => {
+      const row = [csvEsc(l.date), csvEsc(l.workout || "")];
+      if (withMeta) row.push(l.minutes || "", l.effort || "");
+      rows.push(row);
+    });
   return rows.map(r => r.join(",")).join("\n");
+}
+
+// Sessions + minutes trained per month for the last 6 calendar months.
+function monthlyVolume(logs) {
+  const out = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    out.push({ month: key, label: d.toLocaleDateString("en-US", { month: "short" }), sessions: 0, minutes: 0 });
+  }
+  const map = {};
+  out.forEach(o => { map[o.month] = o; });
+  (logs || []).forEach(l => {
+    const k = String(l.date || "").slice(0, 7);
+    if (map[k]) {
+      map[k].sessions++;
+      map[k].minutes += Math.max(0, parseInt(l.minutes, 10) || 0);
+    }
+  });
+  return out;
 }
 
 // ---- library: filter by query + equipment, sort by name/muscles/type ----
@@ -248,8 +298,8 @@ function adherence(logs, plan, refDate) {
   return { done, planned, pct: Math.min(pct, 100) };
 }
 
-const api = { store, GOALS, DAYS, PRESCRIPTIONS, generatePlan, todayISO, logWorkout, deleteLog,
-              logToCSV, filterLibrary, adherence,
+const api = { store, GOALS, DAYS, PRESCRIPTIONS, generatePlan, shuffleSession, todayISO, logWorkout, deleteLog,
+              logToCSV, filterLibrary, adherence, monthlyVolume,
               currentStreak, workoutsThisWeek, restDayReminder, equipmentOK };
 
 if (typeof window !== "undefined") window.FitnessPlan = api;

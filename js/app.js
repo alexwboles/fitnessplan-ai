@@ -84,7 +84,8 @@ function renderPlan(plan) {
     html += '</ul><div class="rx-row"><span class="pill">' + d.workout.sets + ' sets</span>' +
       '<span class="pill">' + esc(d.workout.reps) + (d.workout.exercises[0] && d.workout.exercises[0].timed ? ' each' : ' reps') + '</span>' +
       '<span class="pill">' + d.workout.restSec + 's rest</span></div>';
-    html += '<div style="margin-top:14px"><button class="btn ghost small" data-done="' + i + '">Log done</button></div></div>';
+    html += '<div style="margin-top:14px"><button class="btn ghost small" data-done="' + i + '">Log done</button> ' +
+      '<button class="btn ghost small" data-shuffle="' + i + '" title="Re-roll this session with different exercises">Shuffle</button></div></div>';
   });
   const coach = plan.days.find(d => d.type === "workout");
   if (coach) html += '<p class="coach"><strong>Coach note:</strong> ' + esc(coach.workout.coachNote) + '</p>';
@@ -98,6 +99,14 @@ function wirePlanButtons(plan) {
       const logs = FP.logWorkout(store.get("logs", []), FP.todayISO(), d.workout.name);
       store.set("logs", logs);
       b.textContent = "Logged"; b.disabled = true;
+    };
+  });
+  document.querySelectorAll("[data-shuffle]").forEach(b => {
+    b.onclick = () => {
+      FP.shuffleSession(plan, parseInt(b.getAttribute("data-shuffle"), 10));
+      store.set("plan", plan);
+      el("plan-out").innerHTML = renderPlan(plan);
+      wirePlanButtons(plan);
     };
   });
 }
@@ -140,6 +149,33 @@ function validISODate(s) {
   return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+function effortLabel(rpe) {
+  if (!rpe) return "—";
+  const words = { 1: "easy", 2: "easy", 3: "easy", 4: "moderate", 5: "moderate", 6: "moderate", 7: "hard", 8: "hard", 9: "max", 10: "max" };
+  return rpe + "/10 " + (words[rpe] || "");
+}
+
+function volumeChart(logs) {
+  const mv = FP.monthlyVolume(logs);
+  const maxS = Math.max(1, ...mv.map(m => m.sessions));
+  const W = 560, H = 170, padB = 30, padT = 14;
+  const bw = Math.min(64, (W / mv.length) * 0.55);
+  let s = '<svg viewBox="0 0 ' + W + " " + H + '" class="volchart" role="img" aria-label="Sessions per month, last 6 months">';
+  mv.forEach((m, i) => {
+    const cx = (i + 0.5) * (W / mv.length);
+    const h = Math.max(m.sessions > 0 ? 6 : 0, ((H - padB - padT) * m.sessions) / maxS);
+    const y = H - padB - h;
+    s += '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" class="volbar"/>';
+    s += '<text x="' + cx.toFixed(1) + '" y="' + (H - padB + 16) + '" class="volx" text-anchor="middle">' + m.label + "</text>";
+    if (m.sessions > 0) {
+      s += '<text x="' + cx.toFixed(1) + '" y="' + (y - 6).toFixed(1) + '" class="voln" text-anchor="middle">' + m.sessions +
+        (m.minutes > 0 ? " · " + m.minutes + "m" : "") + "</text>";
+    }
+    s += "<title>" + m.label + ": " + m.sessions + " sessions" + (m.minutes > 0 ? ", " + m.minutes + " minutes" : "") + "</title>";
+  });
+  return s + "</svg>";
+}
+
 function renderLog() {
   const logs = store.get("logs", []);
   const streak = FP.currentStreak(logs);
@@ -155,15 +191,21 @@ function renderLog() {
   html += '<div class="card"><h3>Log a past workout</h3><p class="hint">Forgot to log? Backdate it so your history stays honest.</p>' +
     '<div class="backdate-row"><input type="date" id="l-backdate" value="' + FP.todayISO() + '" aria-label="Date">' +
     '<input type="text" id="l-backname" placeholder="Workout name (e.g. Push Day)" aria-label="Workout name">' +
+    '<input type="number" id="l-min" min="1" max="600" placeholder="Minutes" aria-label="Minutes trained" style="max-width:110px">' +
+    '<select id="l-rpe" aria-label="Effort"><option value="">Effort…</option>' +
+    [1,2,3,4,5,6,7,8,9,10].map(n => '<option value="' + n + '">' + n + '/10</option>').join("") + '</select>' +
     '<button class="btn small" id="l-addpast">Add entry</button></div>' +
     '<p class="form-error" id="l-error" style="display:none"></p>' +
     '<div class="toolbar-row"><button class="btn ghost small" id="l-export">Export log as CSV</button></div></div>';
+  html += '<div class="card"><h3>Training volume</h3><p class="hint">Sessions and minutes per month, last 6 months.</p>' + volumeChart(logs) + '</div>';
   html += '<div class="card"><h3>Workout log</h3>';
   if (!logs.length) html += '<p class="hint">Nothing logged yet. Finish a workout on the Plan tab and hit "Log done".</p>';
   else {
-    html += '<table class="log"><tr><th>Date</th><th>Workout</th><th></th></tr>';
+    html += '<table class="log"><tr><th>Date</th><th>Workout</th><th>Min</th><th>Effort</th><th></th></tr>';
     logs.slice().reverse().slice(0, 30).forEach(l => {
       html += '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.workout || "—") + '</td>' +
+        '<td>' + (l.minutes ? esc(String(l.minutes)) : "—") + '</td>' +
+        '<td>' + esc(effortLabel(l.effort)) + '</td>' +
         '<td class="act-cell"><button class="link danger-link" data-dellog="' + esc(l.date) + '">delete</button></td></tr>';
     });
     html += '</table>';
@@ -183,8 +225,13 @@ function renderLog() {
     const err = el("l-error");
     if (!validISODate(d)) { err.textContent = "Pick a valid date."; err.style.display = "block"; return; }
     if (d > FP.todayISO()) { err.textContent = "Can't log a future workout — backdate only."; err.style.display = "block"; return; }
+    const mins = parseInt(el("l-min").value, 10), rpe = parseInt(el("l-rpe").value, 10);
+    if (el("l-min").value && !(mins > 0 && mins <= 600)) { err.textContent = "Minutes must be between 1 and 600."; err.style.display = "block"; return; }
     err.style.display = "none";
-    store.set("logs", FP.logWorkout(store.get("logs", []), d, name));
+    const meta = {};
+    if (mins > 0) meta.minutes = mins;
+    if (rpe >= 1 && rpe <= 10) meta.effort = rpe;
+    store.set("logs", FP.logWorkout(store.get("logs", []), d, name, meta));
     renderLog();
   };
   el("l-export").onclick = () => {
