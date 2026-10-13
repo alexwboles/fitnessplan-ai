@@ -259,4 +259,35 @@ grep -q 'longestStreak' js/app.js || fail "app.js missing longestStreak stat"
 grep -q 'wireRestTimer' js/app.js || fail "app.js missing wireRestTimer"
 pass "rest timer + swap + best streak wired in app.js"
 
+
+
+# redesign sweep: type filter + flame accent
+node -e "
+const FP = require('./js/logic.js');
+const EX = require('./js/exercises.js').EXERCISES;
+const core = FP.filterLibrary(EX, { type: 'core' });
+if (!core.length || !core.every(e => e.type === 'core')) throw new Error('core filter');
+const all = FP.filterLibrary(EX, { type: '' });
+if (all.length !== EX.length) throw new Error('empty type should be all');
+const combo = FP.filterLibrary(EX, { type: 'strength', q: 'burpee' });
+if (combo.length) throw new Error('combo should exclude');
+console.log('OK');
+" || fail "filterLibrary type opt"
+pass "filterLibrary type opt"
+
+node -e "
+const fs = require('fs'), a = fs.readFileSync('js/app.js', 'utf8');
+for (const s of ['tchip', 'data-type', 'libType']) if (!a.includes(s)) throw new Error('missing ' + s);
+console.log('OK');
+" || fail "app.js wires type chips"
+pass "app.js wires type chips"
+
+node -e "
+const fs = require('fs'), c = fs.readFileSync('css/style.css', 'utf8');
+for (const s of ['--flame: #fc4c02', '.typechips', '.tchip.active']) if (!c.includes(s)) throw new Error('missing ' + s);
+if (/volt/i.test(c)) throw new Error('volt still referenced');
+console.log('OK');
+" || fail "flame accent + typechips css"
+pass "flame accent + typechips css"
+
 echo "All smoke tests passed."

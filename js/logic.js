@@ -326,10 +326,12 @@ function filterLibrary(exercises, opts) {
   opts = opts || {};
   const q = String(opts.q || "").toLowerCase();
   const eq = opts.equipment || ""; // equipment key; "" = any
+  const type = opts.type || ""; // workout type; "" = any
   const sort = opts.sort || "name";
   let list = exercises.filter(e =>
     (!q || e.name.toLowerCase().indexOf(q) !== -1 || e.muscles.toLowerCase().indexOf(q) !== -1) &&
-    (!eq || e.equipment.indexOf(eq) !== -1));
+    (!eq || e.equipment.indexOf(eq) !== -1) &&
+    (!type || e.type === type));
   const key = sort === "muscles" ? (e => e.muscles) : sort === "type" ? (e => e.type) : (e => e.name);
   return list.slice().sort((a, b) => key(a).toLowerCase() < key(b).toLowerCase() ? -1 : 1);
 }

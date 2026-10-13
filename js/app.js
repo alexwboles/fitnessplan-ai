@@ -209,10 +209,14 @@ function wireRestTimer(plan) {
 let libFilter = "";
 let libEquipment = "";
 let libSort = "name";
+let libType = "";
+const LIB_TYPES = [["", "All types"], ["strength", "Strength"], ["core", "Core"], ["cardio", "Cardio"]];
 function renderLibrary() {
-  const list = FP.filterLibrary(EX, { q: libFilter, equipment: libEquipment, sort: libSort });
+  const list = FP.filterLibrary(EX, { q: libFilter, equipment: libEquipment, sort: libSort, type: libType });
   let html = '<p class="kicker">Movement index</p><h2 class="title">Exercise library</h2>' +
     '<p class="lede">' + list.length + ' movements, filtered to the equipment you own when you generate a plan.</p>';
+  html += '<div class="typechips" role="tablist" aria-label="Filter by workout type">' +
+    LIB_TYPES.map(t => '<button class="tchip' + (libType === t[0] ? " active" : "") + '" data-type="' + t[0] + '" role="tab" aria-selected="' + (libType === t[0]) + '">' + t[1] + "</button>").join("") + "</div>";
   html += '<div class="lib-head"><div class="search">' +
     '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#8b948f" stroke-width="1.6"/><path d="M11 11l3 3" stroke="#8b948f" stroke-width="1.6" stroke-linecap="round"/></svg>' +
     '<input type="text" id="lib-q" placeholder="Search exercises or muscles…" value="' + esc(libFilter) + '"></div>' +
@@ -234,6 +238,9 @@ function renderLibrary() {
   el("lib-q").oninput = ev => { libFilter = ev.target.value; renderLibrary(); const q2 = el("lib-q"); q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); };
   el("lib-eq").onchange = ev => { libEquipment = ev.target.value; renderLibrary(); };
   el("lib-sort").onchange = ev => { libSort = ev.target.value; renderLibrary(); };
+  document.querySelectorAll("[data-type]").forEach(b => {
+    b.onclick = () => { libType = b.getAttribute("data-type"); renderLibrary(); };
+  });
 }
 
 // ---------- log tab ----------
