@@ -115,4 +115,25 @@ flow("library equipment filter + sorting", () => {
   assert.ok(core.some(e => e.name === "Plank Hold"), "search still finds Plank Hold");
 });
 
+// Flow 11: swap one exercise, rest-timer formatting, longest streak over a mixed log
+flow("swap exercise + rest format + longest streak", () => {
+  const plan = FP.generatePlan({ goal: "strength", daysPerWeek: 3, equipment: ["dumbbell"] }, 77);
+  const di = plan.days.findIndex(d => d.type === "workout");
+  const before = plan.days[di].workout.exercises.map(e => e.id);
+  FP.swapExercise(plan, di, 1);
+  const after = plan.days[di].workout.exercises;
+  assert.notStrictEqual(after[1].id, before[1], "exercise swapped");
+  assert.strictEqual(new Set(after.map(e => e.id)).size, after.length, "no duplicate exercises in session");
+  after.forEach(e => {
+    const full = X.EXERCISES.find(x => x.id === e.id);
+    assert.ok(full, "swapped id resolves: " + e.id);
+  });
+  assert.strictEqual(FP.formatRest(90), "1:30");
+  assert.strictEqual(FP.formatRest(45), "0:45");
+  let logs = [];
+  ["2026-09-20", "2026-09-21", "2026-09-22", "2026-09-25"].forEach(d => { logs = FP.logWorkout(logs, d, "W"); });
+  assert.strictEqual(FP.longestStreak(logs), 3, "3-day run is the longest");
+  assert.strictEqual(FP.longestStreak([]), 0);
+});
+
 console.log(passed + " e2e flows passed.");

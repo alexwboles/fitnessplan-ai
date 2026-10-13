@@ -19,7 +19,9 @@ python3 -m http.server 8000
 - **Equipment-aware** — only suggests exercises you can actually do with the gear you own (bodyweight, dumbbells, barbell, kettlebell, band, pull-up bar, jump rope, bench)
 - **Smart week layout** — workouts spread across the week so muscles recover between sessions
 - **40-exercise library** — searchable by name or muscle group, filterable by equipment, sortable by name/muscle/type, with equipment tags
-- **Workout log + streaks** — log completed sessions, backdate missed workouts, delete mistaken entries, track your current day-streak, weekly adherence % vs your plan, and export the full log as CSV
+- **Workout log + streaks** — log completed sessions, backdate missed workouts, delete mistaken entries, track your current day-streak and all-time best streak, weekly adherence % vs your plan, and export the full log as CSV
+- **Rest timer** — countdown preset to your plan's rest interval (±10s adjustable), with an audible + haptic finish signal
+- **Session shuffle + per-exercise swap** — re-roll a whole session or swap a single move for a similar one (same muscles, your equipment)
 - **Rest-day reminders** — tells you whether today is training or recovery, and names your next session
 
 ## Tests

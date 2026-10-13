@@ -232,6 +232,50 @@ function nextWorkoutDay(plan, fromIdx) {
   return "none scheduled";
 }
 
+// Swap one exercise for a different one hitting the same muscles.
+// Candidates share a muscle word, match timed-ness, respect owned
+// equipment, and aren't already in the session. Mutates + returns plan.
+function swapExercise(plan, dayIdx, exIdx) {
+  if (!plan || !plan.days || !plan.days[dayIdx] || plan.days[dayIdx].type !== "workout") return plan;
+  const w = plan.days[dayIdx].workout;
+  if (!w.exercises[exIdx]) return plan;
+  const cur = w.exercises[exIdx];
+  const owned = plan.equipment || ["none"];
+  const inSession = new Set(w.exercises.map(e => e.id));
+  const pool = E.EXERCISES.filter(e => equipmentOK(e, owned));
+  const words = String(cur.muscles).split(/[\s,\/]+/).filter(Boolean);
+  let cands = pool.filter(e =>
+    e.id !== cur.id && !inSession.has(e.id) && !!e.timed === !!cur.timed &&
+    words.some(m => e.muscles.indexOf(m) !== -1));
+  if (!cands.length) {
+    cands = pool.filter(e => e.id !== cur.id && !inSession.has(e.id) && !!e.timed === !!cur.timed);
+  }
+  if (!cands.length) return plan;
+  const e = cands[Math.floor(Math.random() * cands.length)];
+  w.exercises[exIdx] = { id: e.id, name: e.name, muscles: e.muscles, timed: !!e.timed };
+  return plan;
+}
+
+// All-time longest run of consecutive logged days.
+function longestStreak(logs) {
+  if (!logs || !logs.length) return 0;
+  const days = Array.from(new Set(logs.map(l => l.date))).sort();
+  let best = 1, run = 1;
+  for (let i = 1; i < days.length; i++) {
+    const prev = new Date(days[i - 1] + "T00:00:00").getTime();
+    const cur = new Date(days[i] + "T00:00:00").getTime();
+    if (cur - prev === 86400000) { run++; if (run > best) best = run; }
+    else run = 1;
+  }
+  return best;
+}
+
+// mm:ss display for the rest timer.
+function formatRest(sec) {
+  sec = Math.max(0, Math.round(sec));
+  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+
 // ---- log management: delete + CSV export ----
 function deleteLog(logs, dateISO) {
   return (logs || []).filter(l => l.date !== dateISO);
@@ -298,9 +342,9 @@ function adherence(logs, plan, refDate) {
   return { done, planned, pct: Math.min(pct, 100) };
 }
 
-const api = { store, GOALS, DAYS, PRESCRIPTIONS, generatePlan, shuffleSession, todayISO, logWorkout, deleteLog,
+const api = { store, GOALS, DAYS, PRESCRIPTIONS, generatePlan, shuffleSession, swapExercise, todayISO, logWorkout, deleteLog,
               logToCSV, filterLibrary, adherence, monthlyVolume,
-              currentStreak, workoutsThisWeek, restDayReminder, equipmentOK };
+              currentStreak, longestStreak, formatRest, workoutsThisWeek, restDayReminder, equipmentOK };
 
 if (typeof window !== "undefined") window.FitnessPlan = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;

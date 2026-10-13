@@ -128,6 +128,16 @@ p.lede { color: var(--muted); margin: 0 0 22px; max-width: 60ch; }
   font-size: 13.5px;
 }
 .ex-list .m { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.swap-link { margin-left: auto; flex-shrink: 0; }
+
+/* ---------- rest timer ---------- */
+.rest-timer { margin-top: 18px; }
+.rt-display {
+  font-size: 54px; font-weight: 800; letter-spacing: -0.02em; color: var(--volt);
+  font-variant-numeric: tabular-nums; line-height: 1.1; margin: 4px 0 12px;
+}
+.rt-display.done { color: var(--ink); }
+.rt-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .rx-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .coach { margin: 14px 0 0; padding: 12px 14px; border-radius: 0; background: var(--volt-soft); border: 1px solid rgba(185,233,55,.22); font-size: 13.5px; color: var(--ink-soft); }
 .coach strong { color: var(--volt); }

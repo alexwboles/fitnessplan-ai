@@ -205,4 +205,58 @@ console.log('OK');
 " || fail "backdate logging"
 pass "logWorkout accepts a backdated entry"
 
+# 18: swapExercise replaces one exercise with a different, valid one
+node -e "
+const FP = require('./js/logic.js');
+const p = FP.generatePlan({goal:'strength', daysPerWeek:3, equipment:['dumbbell']}, 21);
+const di = p.days.findIndex(d => d.type === 'workout');
+const before = p.days[di].workout.exercises.map(e => e.id);
+FP.swapExercise(p, di, 0);
+const after = p.days[di].workout.exercises;
+if (after[0].id === before[0]) throw new Error('exercise not swapped');
+const ids = after.map(e => e.id);
+if (new Set(ids).size !== ids.length) throw new Error('duplicate in session after swap');
+const ri = p.days.findIndex(d => d.type === 'rest');
+const snap = JSON.stringify(p.days[ri]);
+FP.swapExercise(p, ri, 0);
+if (JSON.stringify(p.days[ri]) !== snap) throw new Error('rest-day swap changed something');
+console.log('OK: swapped to ' + after[0].name);
+" || fail "swapExercise"
+pass "swapExercise: one exercise swapped, no dupes, rest-day safe"
+
+# 19: longestStreak finds the best run
+node -e "
+const FP = require('./js/logic.js');
+let logs = [];
+['2026-09-20','2026-09-21','2026-09-22'].forEach(d => { logs = FP.logWorkout(logs, d, 'A'); });
+logs = FP.logWorkout(logs, '2026-09-25', 'B');
+logs = FP.logWorkout(logs, '2026-09-26', 'B');
+if (FP.longestStreak(logs) !== 3) throw new Error('expected 3, got ' + FP.longestStreak(logs));
+if (FP.longestStreak([]) !== 0) throw new Error('empty should be 0');
+if (FP.longestStreak([{date:'2026-09-20',workout:'A'}]) !== 1) throw new Error('single should be 1');
+console.log('OK');
+" || fail "longestStreak"
+pass "longestStreak: 3-day best run; empty -> 0; single -> 1"
+
+# 20: formatRest renders mm:ss
+node -e "
+const FP = require('./js/logic.js');
+if (FP.formatRest(90) !== '1:30') throw new Error('90 -> ' + FP.formatRest(90));
+if (FP.formatRest(45) !== '0:45') throw new Error('45 -> ' + FP.formatRest(45));
+if (FP.formatRest(600) !== '10:00') throw new Error('600 -> ' + FP.formatRest(600));
+if (FP.formatRest(0) !== '0:00') throw new Error('0 -> ' + FP.formatRest(0));
+console.log('OK');
+" || fail "formatRest"
+pass "formatRest: 90 -> 1:30, 45 -> 0:45, 600 -> 10:00"
+
+# 21: rest timer + swap + best streak wired in app.js
+for id in restTime restStart restPause restReset restMinus restPlus; do
+  grep -q "id=\"$id\"" js/app.js || fail "app.js missing rest timer #$id"
+done
+grep -q 'data-swap' js/app.js || fail "app.js missing swap buttons"
+grep -q 'swapExercise' js/app.js || fail "app.js missing swapExercise wiring"
+grep -q 'longestStreak' js/app.js || fail "app.js missing longestStreak stat"
+grep -q 'wireRestTimer' js/app.js || fail "app.js missing wireRestTimer"
+pass "rest timer + swap + best streak wired in app.js"
+
 echo "All smoke tests passed."

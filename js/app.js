@@ -62,6 +62,18 @@ function renderPlan(plan) {
   }
   html += '</section>';
 
+  if (today.type === "workout") {
+    html += '<div class="card rest-timer"><h3>Rest timer</h3>' +
+      '<div class="rt-display" id="restTime">' + FP.formatRest(today.workout.restSec) + '</div>' +
+      '<div class="rt-controls">' +
+      '<button class="btn ghost small" id="restMinus">−10s</button>' +
+      '<button class="btn small" id="restStart">Start</button>' +
+      '<button class="btn ghost small" id="restPause" disabled>Pause</button>' +
+      '<button class="btn ghost small" id="restReset">Reset</button>' +
+      '<button class="btn ghost small" id="restPlus">+10s</button></div>' +
+      '<p class="hint">Preset to your plan\u2019s ' + today.workout.restSec + 's rest. Tap ±10s to adjust.</p></div>';
+  }
+
   html += '<p class="kicker">The week</p><div class="week-strip">';
   plan.days.forEach((d, i) => {
     if (d.type === "workout") {
@@ -80,7 +92,10 @@ function renderPlan(plan) {
     if (d.type !== "workout") return;
     html += '<div class="card session"><h3>' + esc(d.day) + ' — ' + esc(d.workout.name) + '</h3>';
     html += '<ul class="ex-list">';
-    d.workout.exercises.forEach(e => { html += '<li><span>' + esc(e.name) + '</span><span class="m">' + esc(e.muscles) + '</span></li>'; });
+    d.workout.exercises.forEach((e, ei) => {
+      html += '<li><span>' + esc(e.name) + '</span><span class="m">' + esc(e.muscles) + '</span>' +
+        '<button class="link swap-link" data-swap="' + i + ':' + ei + '" title="Swap for a similar exercise">swap</button></li>';
+    });
     html += '</ul><div class="rx-row"><span class="pill">' + d.workout.sets + ' sets</span>' +
       '<span class="pill">' + esc(d.workout.reps) + (d.workout.exercises[0] && d.workout.exercises[0].timed ? ' each' : ' reps') + '</span>' +
       '<span class="pill">' + d.workout.restSec + 's rest</span></div>';
@@ -109,6 +124,85 @@ function wirePlanButtons(plan) {
       wirePlanButtons(plan);
     };
   });
+  document.querySelectorAll("[data-swap]").forEach(b => {
+    b.onclick = () => {
+      const parts = b.getAttribute("data-swap").split(":");
+      FP.swapExercise(plan, parseInt(parts[0], 10), parseInt(parts[1], 10));
+      store.set("plan", plan);
+      el("plan-out").innerHTML = renderPlan(plan);
+      wirePlanButtons(plan);
+    };
+  });
+  wireRestTimer(plan);
+}
+
+// ---------- rest timer ----------
+const restTimer = { total: 0, left: 0, handle: null, running: false };
+
+function restDone() {
+  // three soft beeps + haptic, guarded for browsers without audio/vibration
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+      const ctx = new AC();
+      [0, 0.25, 0.5].forEach(off => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 880; o.type = "sine";
+        const t0 = ctx.currentTime + off;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+        o.start(t0); o.stop(t0 + 0.22);
+      });
+    }
+  } catch (e) {}
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+}
+
+function wireRestTimer(plan) {
+  const display = el("restTime");
+  if (!display) return;
+  if (restTimer.handle) { clearInterval(restTimer.handle); restTimer.handle = null; }
+  const today = plan.days[todayIdx()];
+  restTimer.total = restTimer.left = (today.type === "workout" && today.workout.restSec) || 60;
+  restTimer.running = false;
+  const draw = () => {
+    display.textContent = display.dataset.rung ? "Go!" : FP.formatRest(restTimer.left);
+    display.classList.toggle("done", !!display.dataset.rung);
+  };
+  const syncBtns = () => { el("restStart").disabled = restTimer.running; el("restPause").disabled = !restTimer.running; };
+  const stop = () => { if (restTimer.handle) clearInterval(restTimer.handle); restTimer.handle = null; restTimer.running = false; syncBtns(); };
+  el("restStart").onclick = () => {
+    if (restTimer.running) return;
+    if (restTimer.left <= 0) { restTimer.left = restTimer.total; display.dataset.rung = ""; }
+    restTimer.running = true;
+    restTimer.handle = setInterval(() => {
+      restTimer.left -= 1;
+      if (restTimer.left <= 0) {
+        restTimer.left = 0; stop();
+        display.dataset.rung = "1"; draw();
+        restDone();
+        return;
+      }
+      draw();
+    }, 1000);
+    syncBtns();
+  };
+  el("restPause").onclick = () => { stop(); };
+  el("restReset").onclick = () => { stop(); restTimer.left = restTimer.total; display.dataset.rung = ""; draw(); };
+  el("restMinus").onclick = () => {
+    restTimer.total = Math.max(10, restTimer.total - 10);
+    if (!restTimer.running) restTimer.left = restTimer.total;
+    display.dataset.rung = ""; draw();
+  };
+  el("restPlus").onclick = () => {
+    restTimer.total = Math.min(600, restTimer.total + 10);
+    if (!restTimer.running) restTimer.left = restTimer.total;
+    display.dataset.rung = ""; draw();
+  };
+  display.dataset.rung = "";
+  draw(); syncBtns();
 }
 
 // ---------- library tab ----------
@@ -179,12 +273,14 @@ function volumeChart(logs) {
 function renderLog() {
   const logs = store.get("logs", []);
   const streak = FP.currentStreak(logs);
+  const best = FP.longestStreak(logs);
   const week = FP.workoutsThisWeek(logs);
   const plan = store.get("plan", null);
   const adh = FP.adherence(logs, plan);
   let html = '<p class="kicker">Consistency</p><h2 class="title">Progress</h2><p class="lede">Show up, log it, watch the chain grow.</p>';
   html += '<div class="stat-band">' +
     '<div class="stat"><div class="num">' + streak + '</div><div class="lbl">day streak</div></div>' +
+    '<div class="stat"><div class="num">' + best + '</div><div class="lbl">best streak</div></div>' +
     '<div class="stat"><div class="num">' + week + '</div><div class="lbl">this week' + (plan ? ' / goal ' + plan.daysPerWeek : '') + '</div></div>' +
     '<div class="stat"><div class="num">' + logs.length + '</div><div class="lbl">total sessions</div></div>' +
     (plan ? '<div class="stat"><div class="num">' + adh.pct + '%</div><div class="lbl">weekly adherence</div></div>' : '') + '</div>';
